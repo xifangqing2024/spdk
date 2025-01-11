@@ -55,6 +55,18 @@ spdk_log_get_print_level(void) {
 	return g_spdk_log_print_level;
 }
 
+__attribute__((constructor(102)))
+static void baituo_set_log_level(void) {
+	spdk_log_set_level(SPDK_LOG_DEBUG);
+	spdk_log_set_print_level(SPDK_LOG_DEBUG);
+	printf("baituo %s, loglevel=%d, printlevel=%d\n", __func__, g_spdk_log_level, g_spdk_log_print_level);
+}
+
+__attribute__((constructor(101)))
+static void baituo_print_log_level(void) {
+	printf("baituo %s, loglevel=%d, printlevel=%d\n", __func__, g_spdk_log_level, g_spdk_log_print_level);
+}
+
 static void
 log_open(void *ctx)
 {
