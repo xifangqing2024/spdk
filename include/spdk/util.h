@@ -88,15 +88,18 @@ extern "C" {
 #define _SPDK_GET_FIELD(obj, field, defval, size, ...) \
 	(SPDK_FIELD_VALID(obj, field, size) ? (obj)->field : (defval))
 
+#if defined __cplusplus
+#include "lib/util/math.c"
+#else
 uint32_t spdk_u32log2(uint32_t x);
+uint64_t spdk_u64log2(uint64_t x);
+#endif
 
 static inline uint32_t
 spdk_align32pow2(uint32_t x)
 {
 	return 1u << (1 + spdk_u32log2(x - 1));
 }
-
-uint64_t spdk_u64log2(uint64_t x);
 
 static inline uint64_t
 spdk_align64pow2(uint64_t x)

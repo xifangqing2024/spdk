@@ -2,6 +2,17 @@
  *   Copyright (C) 2016 Intel Corporation.
  *   All rights reserved.
  */
+#if defined __cplusplus
+#include <cstdio>
+//#include <cstring>
+# elif !defined __GNUC__ || defined __STRICT_ANSI__
+xxxx
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+# else
+// echo "baituo test xxx"
+# endif
 
 #include "spdk/stdinc.h"
 #include "spdk/util.h"
@@ -324,5 +335,5 @@ fdump(FILE *fp, const char *label, const uint8_t *buf, size_t len)
 void
 spdk_log_dump(FILE *fp, const char *label, const void *buf, size_t len)
 {
-	fdump(fp, label, buf, len);
+	fdump(fp, label, (const uint8_t*)buf, len);
 }

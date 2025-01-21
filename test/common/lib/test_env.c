@@ -42,7 +42,7 @@ allocate_cores(uint32_t num_cores)
 
 	g_ut_num_cores = num_cores;
 
-	g_ut_cores = calloc(num_cores, sizeof(bool));
+	g_ut_cores = (bool *)calloc(num_cores, sizeof(bool));
 	assert(g_ut_cores != NULL);
 
 	for (i = 0; i < num_cores; i++) {
@@ -306,7 +306,7 @@ spdk_mempool_create(const char *name, size_t count,
 
 	HANDLE_RETURN_MOCK(spdk_mempool_create);
 
-	mp = calloc(1, sizeof(*mp));
+	mp = (struct test_mempool*)calloc(1, sizeof(*mp));
 	if (mp == NULL) {
 		return NULL;
 	}
@@ -424,7 +424,7 @@ spdk_ring_create(enum spdk_ring_type type, size_t count, int numa_id)
 
 	HANDLE_RETURN_MOCK(spdk_ring_create);
 
-	ring = calloc(1, sizeof(*ring));
+	ring = (struct spdk_ring*)calloc(1, sizeof(*ring));
 	if (!ring) {
 		return NULL;
 	}
@@ -468,7 +468,7 @@ spdk_ring_enqueue(struct spdk_ring *ring, void **objs, size_t count,
 	pthread_mutex_lock(&ring->lock);
 
 	for (i = 0; i < count; i++) {
-		ele = calloc(1, sizeof(*ele));
+		ele = (struct spdk_ring_ele*)calloc(1, sizeof(*ele));
 		if (!ele) {
 			break;
 		}

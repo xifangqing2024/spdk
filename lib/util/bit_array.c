@@ -352,7 +352,7 @@ spdk_bit_pool_create(uint32_t num_bits)
 		return NULL;
 	}
 
-	pool = calloc(1, sizeof(*pool));
+	pool = (struct spdk_bit_pool *)calloc(1, sizeof(*pool));
 	if (pool == NULL) {
 		spdk_bit_array_free(&array);
 		return NULL;
@@ -370,7 +370,7 @@ spdk_bit_pool_create_from_array(struct spdk_bit_array *array)
 {
 	struct spdk_bit_pool *pool = NULL;
 
-	pool = calloc(1, sizeof(*pool));
+	pool = (struct spdk_bit_pool *)calloc(1, sizeof(*pool));
 	if (pool == NULL) {
 		return NULL;
 	}

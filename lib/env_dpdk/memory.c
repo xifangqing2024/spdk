@@ -3,6 +3,56 @@
  *   All rights reserved.
  */
 
+#if defined __cplusplus
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <iostream>
+// #include <cstring>
+static void* memcpy(void* dest, const void* src, size_t count) {
+	if (dest == NULL || src == NULL || count == 0) return dest;
+	char* d = (char*)dest;
+	char* s = (char*)src;
+	while (count--){
+		*d++ = *s++;
+	}
+	return dest;
+}
+static void* memset(void* ptr, int value, size_t num) {
+    unsigned char* p = (unsigned char*)ptr;
+    while (num--) {
+        *p++ = (unsigned char)value;
+    }
+    return ptr;
+}
+static int memcmp(const void *s1, const void *s2, size_t n) {
+    const uint8_t *b1 = (const uint8_t *)s1;
+    const uint8_t *b2 = (const uint8_t *)s2;
+    while (n-- > 0) {
+        if (*b1 != *b2) {
+            return (*b1 > *b2) ? 1 : -1;
+        }
+        b1++;
+        b2++;
+    }
+    return 0;
+}
+static inline void my_assert_fail(const char *expr, const char *file, unsigned int line, const char *func) {
+    fprintf(stderr, "Assertion `%s` failed in %s at %s:%u\n", expr, func, file, line);
+    abort();
+}
+# define assert(expr)  ((expr) ? (void)(0) : my_assert_fail(#expr, __FILE__, __LINE__, __func__))
+
+#include "log/log.c"
+#include "util/bit_array.c"
+#include "ut/ut.c"
+# elif !defined __GNUC__ || defined __STRICT_ANSI__
+xxxx
+# else
+#include <assert.h> //baituo
+// echo "baituo test xxx"
+# endif
+
 #include "spdk/stdinc.h"
 
 #include "env_internal.h"
@@ -55,7 +105,7 @@ static struct vfio_cfg g_vfio = {
 #endif
 #endif
 
-#if DEBUG
+#if 1 // DEBUG
 #define DEBUG_PRINT(...) SPDK_ERRLOG(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...)
@@ -111,6 +161,7 @@ struct spdk_mem_map {
  *    0 - 61 : reserved
  *   62 - 63 : flags
  */
+struct spdk_mem_map *g_dlc_reg_map;
 static struct spdk_mem_map *g_mem_reg_map;
 static TAILQ_HEAD(spdk_mem_map_head, spdk_mem_map) g_spdk_mem_maps =
 	TAILQ_HEAD_INITIALIZER(g_spdk_mem_maps);
@@ -160,7 +211,10 @@ mem_map_notify_walk(struct spdk_mem_map *map, enum spdk_mem_map_notify_action ac
 			continue;
 		}
 
+		printf("baituo %d %s: ***** idx_256tb=%lu *****\n\n\n", __LINE__, __func__, idx_256tb);
 		for (idx_1gb = 0; idx_1gb < sizeof(map_1gb->map) / sizeof(map_1gb->map[0]); idx_1gb++) {
+			printf("baituo %d %s: idx_1gb=%lu tran2mb=0x%lx, start[0x%lx]\n", __LINE__, __func__, idx_1gb, 
+				map_1gb->map[idx_1gb].translation_2mb, contig_start);
 			if ((map_1gb->map[idx_1gb].translation_2mb & REG_MAP_REGISTERED) &&
 			    (contig_start == UINT64_MAX ||
 			     (map_1gb->map[idx_1gb].translation_2mb & REG_MAP_NOTIFY_START) == 0)) {
@@ -172,6 +226,7 @@ mem_map_notify_walk(struct spdk_mem_map *map, enum spdk_mem_map_notify_action ac
 				}
 
 				contig_end = vaddr;
+				printf("baituo %d %s 111, start=0x%lx, end=0x%lx\n", __LINE__, __func__, contig_start, vaddr);
 			} else {
 				if (contig_start != UINT64_MAX) {
 					/* End of of a virtually contiguous range */
@@ -187,8 +242,10 @@ mem_map_notify_walk(struct spdk_mem_map *map, enum spdk_mem_map_notify_action ac
 					 * it again. The idx_1gb will be incremented immediately.
 					 */
 					idx_1gb--;
+					printf("baituo %d %s 222, start=0x%lx, end=0x%lx\n", __LINE__, __func__, contig_start, contig_end);
 				}
 				contig_start = UINT64_MAX;
+				printf("baituo %d %s 999, idx_1gb=%lu\n", __LINE__, __func__, idx_1gb);
 			}
 		}
 	}
@@ -259,7 +316,7 @@ spdk_mem_map_alloc(uint64_t default_translation, const struct spdk_mem_map_ops *
 	int rc;
 	size_t i;
 
-	map = calloc(1, sizeof(*map));
+	map = (struct spdk_mem_map *)calloc(1, sizeof(*map));
 	if (map == NULL) {
 		return NULL;
 	}
@@ -359,6 +416,7 @@ spdk_mem_register(void *_vaddr, size_t len)
 	seg_len = len;
 	while (seg_len > 0) {
 		reg = spdk_mem_map_translate(g_mem_reg_map, (uint64_t)seg_vaddr, NULL);
+		printf("baituo %d %s reg=0x%lx, seg_len=0x%lx\n", __LINE__, __func__, reg, seg_len);
 		if (reg & REG_MAP_REGISTERED) {
 			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return -EBUSY;
@@ -378,6 +436,7 @@ spdk_mem_register(void *_vaddr, size_t len)
 	}
 
 	TAILQ_FOREACH(map, &g_spdk_mem_maps, tailq) {
+		printf("baituo %d %s: seg_vaddr=0x%lx, seg_len=0x%lx\n", __LINE__, __func__, seg_vaddr, seg_len);
 		rc = map->ops.notify_cb(map->cb_ctx, map, SPDK_MEM_MAP_NOTIFY_REGISTER,
 					(void *)seg_vaddr, seg_len);
 		if (rc != 0) {
@@ -519,7 +578,7 @@ spdk_mem_reserve(void *vaddr, size_t len)
 			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return -EBUSY;
 		}
-		seg_vaddr += VALUE_2MB;
+		seg_vaddr = (void *)((uintptr_t)seg_vaddr + VALUE_2MB);
 		seg_len -= VALUE_2MB;
 	}
 
@@ -543,6 +602,7 @@ mem_map_get_map_1gb(struct spdk_mem_map *map, uint64_t vfn_2mb)
 	uint64_t idx_256tb = MAP_256TB_IDX(vfn_2mb);
 	size_t i;
 
+	printf("baituo %s ---set----: idx_256tb=%lu\n", __func__, idx_256tb);
 	if (spdk_unlikely(idx_256tb >= SPDK_COUNTOF(map->map_256tb.map))) {
 		return NULL;
 	}
@@ -555,7 +615,7 @@ mem_map_get_map_1gb(struct spdk_mem_map *map, uint64_t vfn_2mb)
 		/* Recheck to make sure nobody else got the mutex first. */
 		map_1gb = map->map_256tb.map[idx_256tb];
 		if (!map_1gb) {
-			map_1gb = malloc(sizeof(struct map_1gb));
+			map_1gb = (struct map_1gb*) malloc(sizeof(struct map_1gb));
 			if (map_1gb) {
 				/* initialize all entries to default translation */
 				for (i = 0; i < SPDK_COUNTOF(map_1gb->map); i++) {
@@ -609,6 +669,8 @@ spdk_mem_map_set_translation(struct spdk_mem_map *map, uint64_t vaddr, uint64_t 
 		idx_1gb = MAP_1GB_IDX(vfn_2mb);
 		map_2mb = &map_1gb->map[idx_1gb];
 		map_2mb->translation_2mb = translation;
+		printf("baituo %s ---set----: vfn=0x%lx, size=0x%lx, idx_1gb=%lu, tran=0x%lx\n",
+			__func__, vfn_2mb, size, idx_1gb, translation);
 
 		size -= VALUE_2MB;
 		vfn_2mb++;
@@ -643,14 +705,19 @@ spdk_mem_map_translate(const struct spdk_mem_map *map, uint64_t vaddr, uint64_t 
 	vfn_2mb = vaddr >> SHIFT_2MB;
 	idx_256tb = MAP_256TB_IDX(vfn_2mb);
 	idx_1gb = MAP_1GB_IDX(vfn_2mb);
-
 	map_1gb = map->map_256tb.map[idx_256tb];
+	printf("baituo %d %s vfn_2mb=0x%lx, idx_256tb=%lu, idx_1gb=%lu, map_1gb=%p\n", 
+		 __LINE__, __func__, vfn_2mb, idx_256tb, idx_1gb, map_1gb);
 	if (spdk_unlikely(!map_1gb)) {
 		return map->default_translation;
 	}
 
 	cur_size = VALUE_2MB - _2MB_OFFSET(vaddr);
 	map_2mb = &map_1gb->map[idx_1gb];
+	printf("baituo %d %s vaddr:[%lx][0x%llx] cur_size=0x%lx, size=%p, map_2mb=%p\n",
+		 __LINE__, __func__, vaddr, _2MB_OFFSET(vaddr), cur_size, size, map_2mb);
+	printf("baituo %d %s tran2mb=0x%lx, tranDef=0x%lx, contig=%p\n",
+		 __LINE__, __func__, map_2mb->translation_2mb, map->default_translation, map->ops.are_contiguous);
 	if (size == NULL || map->ops.are_contiguous == NULL ||
 	    map_2mb->translation_2mb == map->default_translation) {
 		if (size != NULL) {
@@ -667,11 +734,15 @@ spdk_mem_map_translate(const struct spdk_mem_map *map, uint64_t vaddr, uint64_t 
 		idx_1gb = MAP_1GB_IDX(vfn_2mb);
 
 		map_1gb = map->map_256tb.map[idx_256tb];
+		printf("baituo %d %s vfn_2mb=0x%lx, idx_256tb=%lu, idx_1gb=%lu, map_1gb=%p\n",
+			 __LINE__, __func__, vfn_2mb, idx_256tb, idx_1gb, map_1gb);
 		if (spdk_unlikely(!map_1gb)) {
 			break;
 		}
 
 		map_2mb = &map_1gb->map[idx_1gb];
+		printf("baituo %d %s tranPrev=0x%lx, tran2mb=0x%lx, contig=%p\n",
+			 __LINE__, __func__, prev_translation, map_2mb->translation_2mb, map->ops.are_contiguous);
 		if (!map->ops.are_contiguous(prev_translation, map_2mb->translation_2mb)) {
 			break;
 		}
@@ -720,6 +791,7 @@ static int
 memory_iter_cb(const struct rte_memseg_list *msl,
 	       const struct rte_memseg *ms, size_t len, void *arg)
 {
+	printf("baituo %s register %p %p %ju\n", __func__, msl, ms, len);
 	return spdk_mem_register(ms->addr, len);
 }
 
@@ -734,6 +806,7 @@ mem_map_init(bool legacy_mem)
 		return -ENOMEM;
 	}
 
+	printf("baituo %s, g_mem_reg_map=%p, g_huge_pages=%d\n", __func__, g_mem_reg_map, g_huge_pages);
 	/*
 	 * Walk all DPDK memory segments and register them
 	 * with the main memory map
@@ -775,7 +848,7 @@ _vfio_iommu_map_dma(uint64_t vaddr, uint64_t iova, uint64_t size)
 	struct spdk_vfio_dma_map *dma_map;
 	int ret;
 
-	dma_map = calloc(1, sizeof(*dma_map));
+	dma_map = (struct spdk_vfio_dma_map*)calloc(1, sizeof(*dma_map));
 	if (dma_map == NULL) {
 		return -ENOMEM;
 	}
@@ -893,7 +966,7 @@ vtophys_iommu_unmap_dma(uint64_t iova, uint64_t size)
 	}
 
 	if (dma_map == NULL) {
-		DEBUG_PRINT("Cannot clear DMA mapping for IOVA %"PRIx64" - it's not mapped\n", iova);
+		DEBUG_PRINT("Cannot clear DMA mapping for IOVA %" PRIx64 " - it's not mapped\n", iova);
 		pthread_mutex_unlock(&g_vfio.mutex);
 		return -ENXIO;
 	}
@@ -933,7 +1006,7 @@ vtophys_iommu_unmap_dma_bar(uint64_t vaddr)
 	}
 
 	if (dma_map == NULL) {
-		DEBUG_PRINT("Cannot clear DMA mapping for address %"PRIx64" - it's not mapped\n", vaddr);
+		DEBUG_PRINT("Cannot clear DMA mapping for address %" PRIx64 " - it's not mapped\n", vaddr);
 		pthread_mutex_unlock(&g_vfio.mutex);
 		return -ENXIO;
 	}
@@ -1086,7 +1159,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 						return rc;
 					}
 
-					vaddr += VALUE_2MB;
+					vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 					len -= VALUE_2MB;
 				}
 
@@ -1110,7 +1183,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 					if (rc != 0) {
 						return rc;
 					}
-					vaddr += VALUE_2MB;
+					vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 					paddr += VALUE_2MB;
 					len -= VALUE_2MB;
 				}
@@ -1155,7 +1228,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 						return rc;
 					}
 
-					vaddr += VALUE_2MB;
+					vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 					len -= VALUE_2MB;
 				}
 			}
@@ -1173,7 +1246,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 					return rc;
 				}
 
-				vaddr += VALUE_2MB;
+				vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 				len -= VALUE_2MB;
 			}
 		}
@@ -1202,7 +1275,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 						return rc;
 					}
 
-					vaddr += VALUE_2MB;
+					vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 					len -= VALUE_2MB;
 				}
 
@@ -1214,7 +1287,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 			 */
 			if (spdk_iommu_is_enabled()) {
 				uint64_t buffer_len = len;
-				uint8_t *va = vaddr;
+				uint8_t *va = (uint8_t *)vaddr;
 				enum rte_iova_mode iova_mode;
 
 				iova_mode = rte_eal_iova_mode();
@@ -1264,7 +1337,7 @@ vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
 				return rc;
 			}
 
-			vaddr += VALUE_2MB;
+			vaddr = (void *)((uintptr_t)vaddr + VALUE_2MB);
 			len -= VALUE_2MB;
 		}
 
@@ -1417,7 +1490,7 @@ vtophys_pci_device_added(struct rte_pci_device *pci_device)
 
 	pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
 
-	vtophys_dev = calloc(1, sizeof(*vtophys_dev));
+	vtophys_dev = (struct spdk_vtophys_pci_device*)calloc(1, sizeof(*vtophys_dev));
 	if (vtophys_dev) {
 		vtophys_dev->pci_device = pci_device;
 		TAILQ_INSERT_TAIL(&g_vtophys_pci_devices, vtophys_dev, tailq);
