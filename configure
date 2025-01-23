@@ -8,6 +8,11 @@
 set -e
 
 trap 'echo -e "\n\nConfiguration failed\n\n" >&2' ERR
+# use hugepage for memseg_list_alloc and set default base mem_map() addr as 0x7a0000000000
+# find ./dpdk/lib/eal/ -type f -name "*.c" | xargs sed -i 's/eal_memseg_list_alloc(msl, 1)/eal_memseg_list_alloc(msl, 0)/g'
+# find ./dpdk/lib/eal/ -type f -name "*.c" | xargs sed -i 's/eal_memseg_list_alloc(msl, 0)/eal_memseg_list_alloc(msl, 1)/g'
+find ./lib/env_dpdk -type f -name "*.c" | xargs sed -i 's/SPDK_ENV_DPDK_DEFAULT_BASE_VIRTADDR	0x200000000000/SPDK_ENV_DPDK_DEFAULT_BASE_VIRTADDR	0x7a0000000000/g'
+find ./lib/event -type f -name "*.c" | xargs sed -i 's/SPDK_APP_DPDK_DEFAULT_BASE_VIRTADDR	0x200000000000/SPDK_APP_DPDK_DEFAULT_BASE_VIRTADDR	0x710000000000/g'
 
 rootdir=$(readlink -f $(dirname $0))
 source "$rootdir/scripts/common.sh"
